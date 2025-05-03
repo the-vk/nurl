@@ -28,6 +28,15 @@ func main() {
 	fmt.Println("Starting HTTP server on port 8080...")
 
 	// Register handlers
+	http.HandleFunc("/health-check", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPut:
