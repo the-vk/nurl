@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -28,11 +29,9 @@ func main() {
 
 	// Register handlers
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Get the key from the URL path
-		longUrl := r.URL.Query().Get("url")
-
 		switch r.Method {
 		case http.MethodPut:
+			longUrl := r.URL.Query().Get("url")
 			shortUrl, err := store(longUrl)
 			if err != nil {
 				fmt.Println("Failed to store key %s: %s", longUrl, err)
@@ -41,8 +40,17 @@ func main() {
 			fmt.Fprintf(w, "Shortened \"%s\" to \"%s%s\"\n", longUrl, BASE_URL, *shortUrl)
 
 		case http.MethodGet:
-			w.WriteHeader(http.StatusOK)
-
+			shortUrl := strings.TrimPrefix(r.URL.Path, "/")
+			record, err := query(shortUrl)
+			if err != nil {
+				fmt.Println("Failed to query short url %s: %s", shortUrl, err)
+			}
+			if record == nil {
+				w.WriteHeader(http.StatusNotFound)
+			} else {
+				w.Header().Set("Location", record.Long)
+				w.WriteHeader(http.StatusMovedPermanently)
+			}
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -90,6 +98,27 @@ func store(longUrl string) (*string, error) {
 	}
 
 	return &record.Short, nil
+}
+
+func query(shortUrl string) (*UrlRecord, error) {
+	ctx := context.Background()
+	client, err := firestore.NewClientWithDatabase(ctx, PROJECT_ID, DATABASE)
+	if err != nil {
+		return nil, err
+	}
+
+	collection := client.Collection("Urls")
+	q := collection.Where("short", "==", shortUrl).Limit(1)
+	records, err := q.Documents(ctx).GetAll()
+	if err != nil {
+		return nil, err
+	}
+	if len(records) == 0 {
+		return nil, nil
+	}
+	var record UrlRecord
+	records[0].DataTo(&record)
+	return &record, nil
 }
 
 func shorten(originalUrl string) string {
