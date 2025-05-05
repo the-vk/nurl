@@ -6,6 +6,8 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,7 +17,8 @@ import (
 const (
 	PROJECT_ID = "nurl-458720"
 	DATABASE   = "nurl"
-	BASE_URL   = "http://localhost:8080/"
+	BASE_URL   = "http://localhost:80/"
+	PORT       = 80
 )
 
 type UrlRecord struct {
@@ -24,8 +27,25 @@ type UrlRecord struct {
 	CreatedAt time.Time `firestore:"created_at"`
 }
 
+var host string
+var port int
+
 func main() {
-	fmt.Println("Starting HTTP server on port 8080...")
+	var err error
+	host = os.Getenv("HOST")
+	if host == "" {
+		host = BASE_URL
+	}
+	portStr := os.Getenv("PORT")
+	if portStr != "" {
+		port, err = strconv.Atoi(portStr)
+		if err != nil {
+			port = PORT
+		}
+	} else {
+		port = PORT
+	}
+	fmt.Printf("Starting HTTP server on port %d...\n", port)
 
 	// Register handlers
 	http.HandleFunc("/health-check", func(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +86,7 @@ func main() {
 	})
 
 	// Start the server
-	err := http.ListenAndServe(":8080", nil)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 	if err != nil {
 		fmt.Printf("Server error: %s\n", err)
 	}
